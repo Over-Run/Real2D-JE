@@ -1,22 +1,29 @@
 plugins {
     id 'java'
     id 'idea'
+    id 'signing'
+    id 'maven-publish'
 }
 
 sourceCompatibility = targetCompatibility = JavaVersion.VERSION_11
 
-group 'io.github.username'
-archivesBaseName = 'project-name'
+group 'io.github.over-run'
+archivesBaseName = 'real2d'
 version '0.1.0-SNAPSHOT'
 
 repositories {
     mavenCentral()
     // temporary maven repository
     maven { url 'https://s01.oss.sonatype.org/content/repositories/releases' }
+    maven { url 'https://s01.oss.sonatype.org/content/repositories/snapshots' }
 }
 
 dependencies {
-    implementation 'io.github.over-run:glutils:1.2.0'
+    implementation 'io.github.over-run:glutils:1.3.0-SNAPSHOT'
+    implementation 'org.joml:joml:1.10.2'
+
+    compileOnly 'org.jetbrains:annotations:22.0.0'
+
     runtimeOnly 'org.lwjgl:lwjgl::natives-windows'
     runtimeOnly 'org.lwjgl:lwjgl-glfw::natives-windows'
     runtimeOnly 'org.lwjgl:lwjgl-opengl::natives-windows'
@@ -30,24 +37,87 @@ tasks.withType(JavaCompile) {
 jar {
     from 'LICENSE'
     manifest {
-        attributes 'Main-Class': 'org.example.Main',
+        attributes 'Main-Class': 'org.overrun.real2d.client.Main',
                 'Specification-Title': archiveBaseName,
-                'Specification-Vendor': 'username',
+                'Specification-Vendor': 'Overrun Organization',
                 'Specification-Version': '0',
-                'Implementation-Title': 'Name',
-                'Implementation-Vendor': 'username',
+                'Implementation-Title': 'Real2D',
+                'Implementation-Vendor': 'Overrun Organization',
                 'Implementation-Version': archiveVersion
     }
 }
 
 task sourcesJar(type: Jar, dependsOn: classes) {
     archiveClassifier.set 'sources'
-    from sourceSets.main.allSource, 'LICENSE'
+    from sourceSets.main.allSource, 'LICENSE', 'changelog.txt'
 }
 
 task javadocJar(type: Jar, dependsOn: javadoc) {
     archiveClassifier.set 'javadoc'
-    from javadoc, 'LICENSE'
+    from javadoc, 'LICENSE', 'changelog.txt'
+}
+
+artifacts {
+    archives javadocJar, sourcesJar
+}
+
+java {
+    withJavadocJar()
+    withSourcesJar()
+}
+
+publishing.publications {
+    mavenJava(MavenPublication) {
+        groupId = 'io.github.over-run'
+        artifactId = 'real2d'
+        version = project.version
+        description = 'A sandbox game.'
+        from components.java
+        pom {
+            name = 'Real2D'
+            description = 'A sandbox game.'
+            url = 'https://github.com/Over-Run/Real2D-JE'
+            licenses {
+                license {
+                    name = 'The MIT License'
+                    url = 'https://raw.githubusercontent.com/Over-Run/Real2D-JE/0.x/LICENSE'
+                }
+            }
+            developers {
+                developer {
+                    id = 'squid233'
+                    name = 'squid233'
+                    email = '513508220@qq.com'
+                }
+            }
+            scm {
+                connection = 'https://github.com/Over-Run/Real2D-JE.git'
+                developerConnection = 'https://github.com/Over-Run/Real2D-JE.git'
+                url = 'https://github.com/Over-Run/Real2D-JE'
+            }
+        }
+    }
+}
+// You should add 'OSSRH_USERNAME' and 'OSSRH_PASSWORD'
+// to environment path
+// You should add 'signing.keyId', 'signing.password'
+// and 'signing.secretKeyRingFile'
+// to GRADLE_USER_HOME/gradle.properties
+publishing.repositories {
+    maven {
+        name = "OSSRH"
+        credentials {
+            username System.getenv("OSSRH_USERNAME")
+            password System.getenv("OSSRH_PASSWORD")
+        }
+        url = version.endsWith('-SNAPSHOT')
+                ? 'https://s01.oss.sonatype.org/content/repositories/snapshots/'
+                : 'https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/'
+    }
+}
+
+signing {
+    sign publishing.publications.mavenJava
 }
 
 idea.module.inheritOutputDirs = true
