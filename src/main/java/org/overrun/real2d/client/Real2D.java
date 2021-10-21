@@ -5,13 +5,15 @@ import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.glfw.GLFWImage;
 import org.lwjgl.glfw.GLFWVidMode;
 import org.lwjgl.opengl.GL;
+import org.lwjgl.system.MemoryStack;
 import org.overrun.glutils.AWTImage;
 import org.overrun.glutils.wnd.Framebuffer;
 import org.overrun.real2d.client.render.world.WorldRenderer;
+import org.overrun.real2d.world.Hand;
 import org.overrun.real2d.world.World;
+import org.overrun.real2d.world.block.Block;
 import org.overrun.real2d.world.block.Blocks;
-
-import java.nio.ByteBuffer;
+import org.overrun.real2d.world.entity.Player;
 
 import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.opengl.GL11.*;
@@ -39,7 +41,7 @@ public enum Real2D implements AutoCloseable {
 
     public String appendTitle(String... args) {
         StringBuilder sb = new StringBuilder("Real2D ")
-                .append(GAME_VER);
+            .append(GAME_VER);
         for (String arg : args) {
             sb.append(arg);
         }
@@ -67,10 +69,10 @@ public enum Real2D implements AutoCloseable {
                 }
                 if (world != null) {
                     if (key == GLFW_KEY_1) {
-                        world.player.hand = GRASS_BLOCK;
+                        world.player.setItemInHand(Hand.MAIN_HAND, GRASS_BLOCK);
                     }
                     if (key == GLFW_KEY_2) {
-                        world.player.hand = STONE;
+                        world.player.setItemInHand(Hand.MAIN_HAND, STONE);
                     }
                     if (key == GLFW_KEY_Z) {
                         if (selectZ == 0) {
@@ -98,10 +100,12 @@ public enum Real2D implements AutoCloseable {
         });
         glfwSetScrollCallback(window.getHandle(), (hWnd, xoffset, yoffset) -> {
             if (yoffset != 0 && world != null) {
-                if (world.player.hand == GRASS_BLOCK) {
-                    world.player.hand = STONE;
-                } else if (world.player.hand == STONE) {
-                    world.player.hand = GRASS_BLOCK;
+                Player player = world.player;
+                Block item = player.getItemInHand(Hand.MAIN_HAND);
+                if (item == GRASS_BLOCK) {
+                    player.setItemInHand(Hand.MAIN_HAND, STONE);
+                } else if (item == STONE) {
+                    player.setItemInHand(Hand.MAIN_HAND, GRASS_BLOCK);
                 }
             }
         });
@@ -109,33 +113,36 @@ public enum Real2D implements AutoCloseable {
         GLFWVidMode mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
         if (mode != null) {
             window.setPos((mode.width() - window.getWidth()) >> 1,
-                    (mode.height() - window.getHeight()) >> 1);
+                (mode.height() - window.getHeight()) >> 1);
         }
 
         ClassLoader cl = Real2D.class.getClassLoader();
 
-        try (var images = GLFWImage.malloc(3)) {
+        try (var images = GLFWImage.malloc(3);
+             var stack = MemoryStack.stackPush()) {
             var img16 = GLFWImage.malloc();
             var img32 = GLFWImage.malloc();
             var img48 = GLFWImage.malloc();
 
             var pix = AWTImage.getRGB(AWTImage.load(cl, "assets.real2d/icon16.png"));
-            var bb = ByteBuffer.allocateDirect(pix.length * 4);
+            var bb = stack.malloc(pix.length * Integer.BYTES);
             bb.asIntBuffer().put(pix);
             images.put(0, img16.set(16, 16, bb));
 
             pix = AWTImage.getRGB(AWTImage.load(cl, "assets.real2d/icon32.png"));
-            bb = ByteBuffer.allocateDirect(pix.length * 4);
+            bb = stack.malloc(pix.length * Integer.BYTES);
             bb.asIntBuffer().put(pix);
             images.put(1, img32.set(32, 32, bb));
 
             pix = AWTImage.getRGB(AWTImage.load(cl, "assets.real2d/icon48.png"));
-            bb = ByteBuffer.allocateDirect(pix.length * 4);
+            bb = stack.malloc(pix.length * Integer.BYTES);
             bb.asIntBuffer().put(pix);
             images.put(2, img48.set(48, 48, bb));
 
             glfwSetWindowIcon(window.getHandle(), images);
             img16.close();
+            img32.close();
+            img48.close();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -147,7 +154,7 @@ public enum Real2D implements AutoCloseable {
         glClearColor(0.4f, 0.6f, 0.9f, 1.0f);
         glEnable(GL_TEXTURE_2D);
         Blocks.init();
-        world = new World(48, 32, 2);
+        world = new World();
         world.create();
         worldRenderer = new WorldRenderer(world);
         world.addListener(worldRenderer);

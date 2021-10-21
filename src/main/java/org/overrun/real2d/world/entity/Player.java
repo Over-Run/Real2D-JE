@@ -1,17 +1,21 @@
 package org.overrun.real2d.world.entity;
 
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonWriter;
 import org.overrun.glutils.Textures;
 import org.overrun.glutils.wnd.Framebuffer;
 import org.overrun.real2d.client.Real2D;
 import org.overrun.real2d.client.Window;
 import org.overrun.real2d.client.render.world.BlockRenderer;
 import org.overrun.real2d.client.render.world.WorldRenderer;
+import org.overrun.real2d.util.reg.Registry;
+import org.overrun.real2d.world.Hand;
 import org.overrun.real2d.world.World;
 import org.overrun.real2d.world.block.Block;
 import org.overrun.real2d.world.block.Blocks;
 import org.overrun.real2d.world.phys.AABBox;
 
-import java.io.Serializable;
+import java.io.IOException;
 import java.util.List;
 
 import static org.lwjgl.glfw.GLFW.*;
@@ -23,20 +27,20 @@ import static org.overrun.real2d.client.render.world.WorldRenderer.WORLD_RENDER_
  * @author squid233
  * @since 0.1.0
  */
-public class Player implements Serializable {
-    public static final String TEX_PLAYER = "assets.real2d/textures/entity/player.png";
+public class Player {
+    public static final String TEXTURE = "assets.real2d/textures/entity/player.png";
     public static final float TEX_PLAYER_W = 48.0f;
     public static final float TEX_PLAYER_H = 64.0f;
-    public final transient float bbWidth;
-    public final transient float bbHeight;
+    public final float bbWidth;
+    public final float bbHeight;
     public World world;
     public float x, y, z;
-    public transient float prevX, prevY;
-    public transient AABBox bb;
-    public transient boolean onGround;
-    public transient Block hand = Blocks.GRASS_BLOCK;
-    private transient float headXRot = 0.0f;
-    private transient float yRot = 0.0f;
+    public float prevX, prevY;
+    public AABBox bb;
+    public boolean onGround;
+    private final Block[] handItems = {Blocks.AIR, Blocks.GRASS_BLOCK};
+    private float headXRot = 0.0f;
+    private float yRot = 0.0f;
 
     public Player(World world) {
         bbWidth = 0.6f;
@@ -48,12 +52,67 @@ public class Player implements Serializable {
         prevX = x;
         prevY = y;
         bb = new AABBox(x - 0.3f,
-                y,
-                z,
-                x + 0.3f,
-                y + bbHeight,
-                z + 1);
+            y,
+            z,
+            x + 0.3f,
+            y + bbHeight,
+            z + 1);
         onGround = false;
+    }
+
+    public void serialize(JsonWriter out)
+        throws IOException {
+        out.beginObject()
+            .name("x").value(x)
+            .name("y").value(y)
+            .name("z").value(z)
+            .name("onGround").value(onGround)
+            .name("handItems");
+
+        out.beginArray()
+            .value(handItems[0].getSId())
+            .value(handItems[1].getSId());
+        out.endArray();
+
+        out.endObject();
+    }
+
+    public void deserialize(JsonReader in)
+        throws IOException {
+        in.beginObject();
+        while (in.hasNext()) {
+            switch (in.nextName()) {
+                case "x":
+                    x = (float) in.nextDouble();
+                    break;
+                case "y":
+                    y = (float) in.nextDouble();
+                    break;
+                case "z":
+                    z = (float) in.nextDouble();
+                    break;
+                case "onGround":
+                    onGround = in.nextBoolean();
+                    break;
+                case "handItems":
+                    in.beginArray();
+                    for (int i = 0; i < 2; i++) {
+                        handItems[i] =
+                            Registry.BLOCK.get(in.nextString());
+                    }
+                    in.endArray();
+                    break;
+            }
+        }
+        in.endObject();
+    }
+
+    public Block getItemInHand(Hand hand) {
+        return handItems[hand.ordinal()];
+    }
+
+    public void setItemInHand(Hand hand, Block item) {
+        handItems[hand.ordinal()] = item;
     }
 
     public void move(float xa, float ya, float speed) {
@@ -102,11 +161,11 @@ public class Player implements Serializable {
         float xa = 0;
         float ya = 0;
         if (window.isKeyDown(GLFW_KEY_SPACE)
-                || window.isKeyDown(GLFW_KEY_W)) {
+            || window.isKeyDown(GLFW_KEY_W)) {
             ++ya;
         }
         if (window.isKeyDown(GLFW_KEY_LEFT_SHIFT)
-                || window.isKeyDown(GLFW_KEY_S)) {
+            || window.isKeyDown(GLFW_KEY_S)) {
             --ya;
         }
         if (window.isKeyDown(GLFW_KEY_A)) {
@@ -117,11 +176,11 @@ public class Player implements Serializable {
         }
         move(xa, ya, onGround ? 0.03f : 0.04f);
         bb.set(x - 0.3f,
-                y,
-                z,
-                x + 0.3f,
-                y + bbHeight,
-                z + 1);
+            y,
+            z,
+            x + 0.3f,
+            y + bbHeight,
+            z + 1);
         headXRot = window.mouseY - fb.getHeight() * 0.5f;
         yRot = window.mouseX - fb.getWidth() * 0.5f;
         if (headXRot < -90) {
@@ -142,9 +201,9 @@ public class Player implements Serializable {
         Framebuffer fb = Real2D.INSTANCE.framebuffer;
         glPushMatrix();
         glTranslatef(fb.getWidth() * 0.5f, fb.getHeight() * 0.5f, 20.125f);
-        int id = 0;
+        int id;
         try {
-            id = Textures.loadAWT(Player.class.getClassLoader(), TEX_PLAYER, GL_NEAREST);
+            id = Textures.loadAWT(Player.class.getClassLoader(), TEXTURE, GL_NEAREST);
         } catch (Exception e) {
             throw new RuntimeException("!");
         }
@@ -402,8 +461,8 @@ public class Player implements Serializable {
         glEnd();
         glPopMatrix();
 
-        // handled block
-        int bid = hand.getId();
+        // item in hand
+        int bid = getItemInHand(Hand.MAIN_HAND).getId();
         float bu0 = BlockRenderer.u0(bid);
         float bv0 = BlockRenderer.v0(bid);
         float bu1 = BlockRenderer.u1(bid);

@@ -1,7 +1,13 @@
 package org.overrun.real2d.world;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.TypeAdapter;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonWriter;
 import org.overrun.real2d.client.Real2D;
 import org.overrun.real2d.client.Window;
+import org.overrun.real2d.util.reg.Registry;
 import org.overrun.real2d.world.block.Block;
 import org.overrun.real2d.world.entity.Player;
 import org.overrun.real2d.world.phys.AABBox;
@@ -10,6 +16,8 @@ import java.io.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 import static org.overrun.real2d.client.Window.*;
 import static org.overrun.real2d.world.block.Blocks.*;
@@ -18,26 +26,24 @@ import static org.overrun.real2d.world.block.Blocks.*;
  * @author squid233
  * @since 0.1.0
  */
-public class World implements Serializable {
+public class World {
     public static final int WORLD_VER = 1;
-    private static final int serialVersionUID = WORLD_VER;
-    public transient HitResult hitResult;
-    private transient final List<WorldListener> listeners = new ArrayList<>();
+    private static final Gson gson = new GsonBuilder()
+        .registerTypeAdapter(World.class, new World.Serializer())
+        .create();
+    public HitResult hitResult;
+    private final List<WorldListener> listeners = new ArrayList<>();
     public final Player player = new Player(this);
-    public transient final int width;
-    public transient final int height;
-    public transient final int depth;
-    private final Block[] world;
-    public final int version;
-    private transient final int[] lights;
+    public final int width = 48;
+    public final int height = 32;
+    public final int depth = 2;
+    private final Block[] blocks;
+    public final int version = WORLD_VER;
+    private final int[] lights;
 
-    public World(int w, int h, int d) {
-        width = w;
-        height = h;
-        depth = d;
-        version = WORLD_VER;
+    public World() {
         int sz = width * height * depth;
-        world = new Block[sz];
+        blocks = new Block[sz];
         lights = new int[sz];
         Arrays.fill(lights, 15);
     }
@@ -49,8 +55,8 @@ public class World implements Serializable {
 
     public boolean isInBorder(int x, int y, int z) {
         return x >= 0 && x < width
-                && y >= 0 && y < height
-                && z >= 0 && z < depth;
+            && y >= 0 && y < height
+            && z >= 0 && z < depth;
     }
 
     public void create() {
@@ -64,7 +70,7 @@ public class World implements Serializable {
                         } else if (y == 3) {
                             b = GRASS_BLOCK;
                         }
-                        world[getIndex(x, y, z)] = b;
+                        blocks[getIndex(x, y, z)] = b;
                     }
                 }
             }
@@ -85,15 +91,16 @@ public class World implements Serializable {
             int y = hitResult.y;
             int z = hitResult.z;
             if (b == AIR) {
+                Block block = player.getItemInHand(Hand.MAIN_HAND);
                 if (window.isMouseDown(MBR)
-                        && player.hand != AIR) {
-                    setBlock(x, y, z, player.hand);
+                    && block != AIR) {
+                    setBlock(x, y, z, block);
                 }
             } else {
                 if (window.isMouseDown(MBL)) {
                     setBlock(x, y, z, AIR);
                 } else if (window.isMouseDown(MBM)) {
-                    player.hand = b;
+                    player.setItemInHand(Hand.MAIN_HAND, b);
                 }
             }
         }
@@ -154,7 +161,7 @@ public class World implements Serializable {
 
     public Block getBlock(int x, int y, int z) {
         if (isInBorder(x, y, z)) {
-            return world[getIndex(x, y, z)];
+            return blocks[getIndex(x, y, z)];
         }
         return AIR;
     }
@@ -162,10 +169,10 @@ public class World implements Serializable {
     public void setBlock(int x, int y, int z, Block block) {
         if (isInBorder(x, y, z)) {
             int i = getIndex(x, y, z);
-            if (world[i] == block) {
+            if (blocks[i] == block) {
                 return;
             }
-            world[i] = block;
+            blocks[i] = block;
             calcLights(x, z);
             for (var l : listeners) {
                 l.blockChanged(x, y, z);
@@ -173,27 +180,82 @@ public class World implements Serializable {
         }
     }
 
+    public static class Serializer extends TypeAdapter<World> {
+        @Override
+        public void write(JsonWriter out, World value)
+            throws IOException {
+            out.beginObject()
+                .name("version").value(value.version);
+            value.player.serialize(out.name("player"));
+            out.name("blocks").beginArray();
+            for (var b : value.blocks) {
+                out.value(b.getSId());
+            }
+            out.endArray();
+            out.endObject();
+        }
+
+        @Override
+        public World read(JsonReader in)
+            throws IOException {
+            World world = new World();
+            in.beginObject();
+            in.nextName();
+            in.nextInt();
+            while (in.hasNext()) {
+                switch (in.nextName()) {
+                    case "player":
+                        world.player.deserialize(in);
+                        break;
+                    case "blocks":
+                        in.beginArray();
+                        for (int i = 0; i < world.blocks.length; i++) {
+                            world.blocks[i] =
+                                Registry.BLOCK.get(in.nextString());
+                        }
+                        in.endArray();
+                        break;
+                }
+            }
+            in.endObject();
+            return world;
+        }
+    }
+
     public void save() {
         new File("saves/").mkdirs();
         try (var os = new FileOutputStream("saves/level.dat");
-             var oos = new ObjectOutputStream(os)) {
-            oos.writeObject(this);
+             var gos = new GZIPOutputStream(os);
+             var osw = new OutputStreamWriter(gos)) {
+            gson.toJson(this, osw);
         } catch (IOException e) {
-            new IOException("Couldn't open level.dat", e).printStackTrace();
+            new IOException("Couldn't write level.dat", e).printStackTrace();
         }
     }
 
     public boolean load() {
         new File("saves/").mkdirs();
-        try (var is = new FileInputStream("saves/level.dat");
-             var ois = new ObjectInputStream(is)) {
-            World world = (World) ois.readObject();
-            player.x = world.player.x;
-            player.y = world.player.y;
-            player.z = world.player.z;
-            System.arraycopy(world.world, 0, this.world, 0, world.world.length);
-        } catch (IOException | ClassNotFoundException ignore) {
+        if (!new File("saves/level.dat").exists()) {
+            return false;
         }
-        return false;
+        try (var is = new FileInputStream("saves/level.dat");
+             var gis = new GZIPInputStream(is);
+             var isr = new InputStreamReader(gis)) {
+            World world = gson.fromJson(isr, World.class);
+            Player wp = world.player;
+            player.x = wp.x;
+            player.y = wp.y;
+            player.z = wp.z;
+            player.setItemInHand(Hand.OFF_HAND, wp.getItemInHand(Hand.OFF_HAND));
+            player.setItemInHand(Hand.MAIN_HAND, wp.getItemInHand(Hand.MAIN_HAND));
+            System.arraycopy(world.blocks,
+                0,
+                blocks,
+                0,
+                world.blocks.length);
+            return true;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

@@ -4,13 +4,11 @@ import org.jetbrains.annotations.Nullable;
 import org.overrun.real2d.util.reg.Registry;
 import org.overrun.real2d.world.phys.AABBox;
 
-import java.io.Serializable;
-
 /**
  * @author squid233
  * @since 0.1.0
  */
-public class Block implements Serializable {
+public class Block {
     public boolean isOpaque() {
         return true;
     }
@@ -21,6 +19,10 @@ public class Block implements Serializable {
 
     public @Nullable AABBox getCollision() {
         return getOutline();
+    }
+
+    public final String getSId() {
+        return Registry.BLOCK.getSID(this);
     }
 
     public final int getId() {
