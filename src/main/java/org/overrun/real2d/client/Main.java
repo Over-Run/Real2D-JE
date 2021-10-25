@@ -33,7 +33,7 @@ public class Main implements Runnable, AutoCloseable {
 
     @Override
     public void run() {
-        long lastTime = (long) (glfwGetTime() * 1000);
+        double lastTime = glfwGetTime() * 1000;
         int frames = 0;
         while (!client.window.shouldClose()) {
             client.timer.advanceTime();
@@ -43,7 +43,7 @@ public class Main implements Runnable, AutoCloseable {
             render(client.timer.delta);
             glfwPollEvents();
             ++frames;
-            while (glfwGetTime() * 1000 >= lastTime + 1000L){
+            while (glfwGetTime() * 1000 >= lastTime + 1000) {
                 client.window.setTitle(
                         client.appendTitle(
                                 String.format(" FPS: %d", frames)));
