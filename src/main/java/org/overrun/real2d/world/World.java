@@ -13,9 +13,7 @@ import org.overrun.real2d.world.entity.Player;
 import org.overrun.real2d.world.phys.AABBox;
 
 import java.io.*;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -187,11 +185,21 @@ public class World {
             out.beginObject()
                 .name("version").value(value.version);
             value.player.serialize(out.name("player"));
-            out.name("blocks").beginArray();
-            for (var b : value.blocks) {
-                out.value(b.getSId());
+
+            out.name("idMap")
+                .beginArray();
+            for (var b : Registry.BLOCK) {
+                out.value(b.getId())
+                    .value(b.getSId());
             }
             out.endArray();
+
+            out.name("blocks").beginArray();
+            for (var b : value.blocks) {
+                out.value(b.getId());
+            }
+            out.endArray();
+
             out.endObject();
         }
 
@@ -199,6 +207,7 @@ public class World {
         public World read(JsonReader in)
             throws IOException {
             World world = new World();
+            var idMap = new HashMap<Integer, String>();
             in.beginObject();
             in.nextName();
             in.nextInt();
@@ -207,11 +216,18 @@ public class World {
                     case "player":
                         world.player.deserialize(in);
                         break;
+                    case "idMap":
+                        in.beginArray();
+                        while (in.hasNext()) {
+                            idMap.put(in.nextInt(), in.nextString());
+                        }
+                        in.endArray();
+                        break;
                     case "blocks":
                         in.beginArray();
                         for (int i = 0; i < world.blocks.length; i++) {
                             world.blocks[i] =
-                                Registry.BLOCK.get(in.nextString());
+                                Registry.BLOCK.get(idMap.get(in.nextInt()));
                         }
                         in.endArray();
                         break;
@@ -242,12 +258,7 @@ public class World {
              var gis = new GZIPInputStream(is);
              var isr = new InputStreamReader(gis)) {
             World world = gson.fromJson(isr, World.class);
-            Player wp = world.player;
-            player.x = wp.x;
-            player.y = wp.y;
-            player.z = wp.z;
-            player.setItemInHand(Hand.OFF_HAND, wp.getItemInHand(Hand.OFF_HAND));
-            player.setItemInHand(Hand.MAIN_HAND, wp.getItemInHand(Hand.MAIN_HAND));
+            player.load(world.player);
             System.arraycopy(world.blocks,
                 0,
                 blocks,

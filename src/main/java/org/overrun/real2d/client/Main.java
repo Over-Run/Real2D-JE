@@ -1,8 +1,6 @@
 package org.overrun.real2d.client;
 
 import static org.lwjgl.glfw.GLFW.glfwGetTime;
-import static org.lwjgl.glfw.GLFW.glfwPollEvents;
-import static org.lwjgl.opengl.GL11.*;
 
 /**
  * @author squid233
@@ -16,21 +14,6 @@ public class Main implements Runnable, AutoCloseable {
         run();
     }
 
-    public void render(double delta) {
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glEnable(GL_DEPTH_TEST);
-        glDepthFunc(GL_LEQUAL);
-        if (client.worldRenderer != null) {
-            client.worldRenderer.renderPick(delta);
-        }
-        glDisable(GL_DEPTH_TEST);
-        client.window.swapBuffers();
-    }
-
-    public void tick() {
-        client.tick();
-    }
-
     @Override
     public void run() {
         long lastTime = (long) (glfwGetTime() * 1000);
@@ -38,10 +21,10 @@ public class Main implements Runnable, AutoCloseable {
         while (!client.window.shouldClose()) {
             client.timer.advanceTime();
             for (int i = 0; i < client.timer.ticks; ++i) {
-                tick();
+                client.tick();
             }
-            render(client.timer.delta);
-            glfwPollEvents();
+            client.render();
+            client.update();
             ++frames;
             while (glfwGetTime() * 1000 >= lastTime + 1000L){
                 client.window.setTitle(

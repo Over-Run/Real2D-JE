@@ -52,6 +52,24 @@ public enum Real2D implements AutoCloseable {
         if (world != null) {
             world.tick();
         }
+        if (worldRenderer != null) {
+            worldRenderer.tick();
+        }
+    }
+
+    public void render() {
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glEnable(GL_DEPTH_TEST);
+        glDepthFunc(GL_LEQUAL);
+        if (worldRenderer != null) {
+            worldRenderer.renderPick(timer.delta);
+        }
+        glDisable(GL_DEPTH_TEST);
+        window.swapBuffers();
+    }
+
+    public void update() {
+        glfwPollEvents();
     }
 
     public void init() {

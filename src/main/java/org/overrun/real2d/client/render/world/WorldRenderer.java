@@ -4,6 +4,7 @@ import org.overrun.glutils.Textures;
 import org.overrun.glutils.wnd.Framebuffer;
 import org.overrun.real2d.client.Real2D;
 import org.overrun.real2d.client.Window;
+import org.overrun.real2d.client.render.entity.PlayerRenderer;
 import org.overrun.real2d.world.HitResult;
 import org.overrun.real2d.world.World;
 import org.overrun.real2d.world.WorldListener;
@@ -24,16 +25,18 @@ public class WorldRenderer implements WorldListener, AutoCloseable {
     private boolean isDirty;
     private final World world;
     private final int list;
+    private final PlayerRenderer playerRenderer;
 
     public WorldRenderer(World world) {
         isDirty = true;
         this.world = world;
+        playerRenderer = new PlayerRenderer(world.player);
         list = glGenLists(1);
         if (!glIsTexture(blocks)) {
             try {
                 blocks = Textures.loadAWT(WorldRenderer.class.getClassLoader(),
-                        "assets.real2d/textures/block/blocks.png",
-                        GL_NEAREST);
+                    "assets.real2d/textures/block/blocks.png",
+                    GL_NEAREST);
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -58,6 +61,10 @@ public class WorldRenderer implements WorldListener, AutoCloseable {
 
     public boolean isDirty() {
         return isDirty;
+    }
+
+    public void tick() {
+        playerRenderer.tick();
     }
 
     public void render(double delta) {
@@ -103,9 +110,9 @@ public class WorldRenderer implements WorldListener, AutoCloseable {
                 float oby = by + yo;
                 float oby1 = by1 + yo;
                 if (mx >= obx
-                        && mx < obx1
-                        && my >= oby
-                        && my < oby1) {
+                    && mx < obx1
+                    && my >= oby
+                    && my < oby1) {
                     selected = true;
                     Block block = world.getBlock(x, y, Real2D.INSTANCE.selectZ);
                     world.hitResult = new HitResult(x, y, Real2D.INSTANCE.selectZ, block);
@@ -160,7 +167,7 @@ public class WorldRenderer implements WorldListener, AutoCloseable {
 
         glDisable(GL_BLEND);
 
-        world.player.render(delta);
+        playerRenderer.render(delta);
     }
 
     @Override
